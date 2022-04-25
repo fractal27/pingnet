@@ -27,7 +27,7 @@ parser.add_argument("-r","--repeat",action="store_true",
                     help='repeats the control infinitely many times')
 parser.add_argument("-p", "--pause", type=float,default=5,
                     help="scan delay.")
-parser.add_argument("-nt", "--no-topography", action="store_true",
+parser.add_argument("-!t", "--no-topography", action="store_true",
                     help='removes scan topology.')
 parser.add_argument("-w","--webmode",action="store_true",
                     help='produces an html file')
@@ -35,9 +35,8 @@ parser.add_argument("-v","--verbose",action="store_true",
                     help="verbose output.")
 parser.add_argument("-s","--save-time-dataframe",action="store_true",
                     help="saves dataframe of execution times(csv,html e xmls).")
-# TODO: add argument to get hostnames
-# parser.add_argument("-n","--gethostnames",action="store_true",
-#                     help="gets the hostnames by their ip.")
+parser.add_argument("-n","--gethostnames",action="store_true",
+                    help="gets the hostnames by their ip.")
 
 args=parser.parse_args()
 
@@ -59,7 +58,7 @@ webmode=args.webmode
 pause=args.pause
 num_threads=args.threads_number
 st=args.save_time_dataframe
-# gethostnames=args.gethostnames
+gethostnames=args.gethostnames
 
 #ping configuration
 
@@ -217,28 +216,23 @@ while 1:
       for scan_res,typ,addr,pc_desc in zip(scan_results,pc_type,addresses,desc_pc):
         if (scan_res == "on" and typ == control_type.to_switch_off):
           logging.info(' '.join(("--- TURN OFF BEFORE LEAVING --- =>",addr,pc_desc,scan_res)))
-    # if gethostnames:
-    #   import socket
-    #   logging.debug("Showing hostnames...")
-    #   addrs=[x for x,r in zip(addresses,scan_results) if r=='on']
-    #   hostnames=[None]*len(addrs)
-    #   def scan_hostnames(i,_addr):
-    #     try:
-    #       hostnames[i]=socket.gethostbyaddr(_addr)
-    #       logging.debug(f"hostname {hostnames[i]} found in ip {addresses[i]}")
-    #     except:
-    #       logging.debug(f"hostname not found in ip {addresses[i]} at {i=}")
-    #   threads=[]
-    #   for i,addr in enumerate(addrs):
-    #     t=Thread(target=scan_hostnames,args=(i,addr))
-    #     t.daemon=True
-    #     t.start()
-    #     threads.append(t)
-    #   for thread in threads:
-    #     thread.join()
-    #   hostnames=[host for host in hostnames if host is not None]
-    #   for ip,addr in zip(addrs,hostnames):
-    #     logging.info(f"-- address:{ip} [{addr}] --")
+    if gethostnames:
+      from socket import gethostbyaddr,herror
+      logging.info("Showing hostnames...")
+      addrs=[x for x,r in zip(addresses,scan_results) if r=='on']
+      def scan_hostnames(i,_addr):
+        try:
+          logging.info(f"{addresses[i]}: {gethostbyaddr(_addr)[0]}")
+        except herror:
+          logging.debug(f"{addresses[i]}: hostname not found")
+      threads=[]
+      for i,addr in enumerate(addrs):
+        t=Thread(target=scan_hostnames,args=(i,addr))
+        t.daemon=True
+        t.start()
+        threads.append(t)
+      for thread in threads:
+        thread.join()
     if webmode:
         logger.warning("webmode is on, visualization will be skipped.")
         logger.debug("building webfile.")
