@@ -12,9 +12,9 @@ import os
 parser=argparse.ArgumentParser()
 
 #get the time_counter with the maximum precision
-default_counter = time.time if sys.platform!='win32' else time.perf_counter
+default_timer = time.time if sys.platform!='win32' else time.perf_counter
 
-start_init=default_counter()
+start_init=default_timer()
 
 
 parser.add_argument("-l","--logfile",default=None,
@@ -136,16 +136,16 @@ if sys.platform=='win32':
     while 1:
       idx = q.get()
       ip = addresses[idx]
-      logger.debug("Thread {}: Pinging {}".format(i, ip))
+      logger.debug(f"Thread {i}: Pinging {ip}")
       ret = subprocess.call(f"ping -n 1 -w 500 -l 1 {ip}",
         shell=True,
         stdout=open('NUL', 'w'),
         stderr=subprocess.STDOUT)
       if not ret:
-        logger.debug("{}: is alive".format(ip))
+        logger.debug(f"{ip}: is alive")
         scan_results[idx] = "on"
       else:
-        logger.debug("{}: did not respond".format(ip))
+        logger.debug(f"{ip}: did not respond")
         scan_results[idx] = "off"
       q.task_done()
 else:
@@ -167,7 +167,7 @@ else:
           scan_results[idx] = "off"
       q.task_done()
 
-end_init=default_counter()
+end_init=default_timer()
 logger.debug("inizializzation ended in %f second(s)"%(end_init-start_init))
 
 logger.debug("creating thread")
@@ -180,16 +180,16 @@ logger.debug("threads created")
 while 1:
 
     logger.info("Start performing check")
-    start_control=default_counter()
+    start_control=default_timer()
 
     for idx in range(num_pcs):
       queue.put(idx)
     queue.join()
 
-    end_control=default_counter()
+    end_control=default_timer()
     logger.debug("check ended.")
     logger.debug("Starting visualization.")
-    start_visualization=default_counter()
+    start_visualization=default_timer()
 
     if not webmode:
       logger.debug("Visualizing result..")
@@ -220,23 +220,28 @@ while 1:
       from socket import gethostbyaddr,herror
       logging.info("Showing hostnames...")
       addrs=[x for x,r in zip(addresses,scan_results) if r=='on']
-      def scan_hostnames(i,_addr):
+      _q=Queue(len(addrs))
+      def scan_hostnames(_addr,q):
         try:
-          logging.info(f"{addresses[i]}: {gethostbyaddr(_addr)[0]}")
+          idx=q.get()
+          logging.info(f"{_addr}: {gethostbyaddr(addrs[idx])[0]}")
         except herror:
-          logging.debug(f"{addresses[i]}: hostname not found")
+          logging.debug(f"{addresses[idx]}: Unknown hostname")
+        finally:
+          logging.debug(f"{idx}th Thread terminated.")
+          q.task_done()
       threads=[]
       for i,addr in enumerate(addrs):
-        t=Thread(target=scan_hostnames,args=(i,addr))
-        t.daemon=True
+        t=Thread(target=scan_hostnames,args=(addr,_q))
+
         t.start()
-        threads.append(t)
-      for thread in threads:
-        thread.join()
+      for i,addr in enumerate(addrs):
+        _q.put(i)
+      _q.join()
     if webmode:
         logger.warning("webmode is on, visualization will be skipped.")
         logger.debug("building webfile.")
-        refreshtime = pause if pause>0 else 30
+        refreshtime = pause if pause>0 else 2
         webpage = [f'<html><head><meta http-equiv="refresh" content="{refreshtime}"></head><body>',"Last update: {}".format(time.strftime(webmode_timeformat)),"<table border=1 width=100%>"]
         
         for network in networks:
@@ -267,15 +272,15 @@ while 1:
           # using lxml instead of BeautifulSoup is .2s faster
           from lxml import etree, html
           document_root = html.fromstring(result)
-          result=etree.tostring(document_root, pretty_print=True)
+          result=etree.tostring(document_root, pretty_print=True, method="html").decode()
         with open("netstatus.html","w") as out_file:
           out_file.write(result)
-    end_visualizzazione = default_counter()
+    end_visualizzazione = default_timer()
     if not repeat:break
     if not webmode:
       logging.info("Waiting %.2f secondi" % pause)
       time.sleep(pause)
-end=default_counter()
+end=default_timer()
 # creating times dataframe
 if st:
   import pandas as pd
