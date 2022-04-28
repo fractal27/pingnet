@@ -31,3 +31,7 @@ here are the parameters:
 
     specify the date format to use in the webfile
 
+> `webmode.prettify`
+
+    1 if you want to prettify the content of the webpage, else 0
+    NOTE:the value must be integer
