@@ -1,4 +1,3 @@
 configparser
-logging
 pandas
 lxml
