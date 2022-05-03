@@ -59,11 +59,13 @@ pause = args.pause
 num_threads = args.threads_number
 st = args.save_time_dataframe
 gethostnames = args.gethostnames
+if not webmode:
+    pause=0
 
 # ping configuration
 
 config = configparser.ConfigParser()
-config.read(os.path.join(os.path.dirname(__name__), 'config.ini'))
+config.read(os.path.join(os.path.dirname(__file__), 'config.ini'))
 
 if not args.configuration == 'DEFAULT':
     config_section = config[args.configuration]
@@ -102,13 +104,14 @@ def gnt(string):
 
 
 def splitby(items: list[tuple[str, str]]):
-    final = {}
+    final:dict[str,list] = {}
     for key, val in items:
         if key.split(".")[1] not in final:
-            if final.get(int(key.split(".")[1])):
-                final[int(key.split(".")[1])].append(val)
+            _k=int(key.split(".")[1])
+            if final.get(_k):
+                final[_k].append(val)
             else:
-                final[int(key.split(".")[1])] = [val]
+                final[_k] = [val]
     final = list(map(lambda lst: [*map(int, (lst[0], lst[1])), lst[2],
                  control_type().__getattribute__(lst[3])], list(final.values())))
     return final
@@ -132,7 +135,6 @@ for idx in range(num_pcs):
     pc_type.append(idx)
 
 num_pc = 0
-results = {}
 
 for network in networks:
     for index in range(network[1]):
@@ -145,17 +147,16 @@ for network in networks:
         pc_type[num_pc] = network[3]
         num_pc += 1
 
-queue = Queue()
+queue:Queue = Queue()
 
 # wraps system ping command
 if sys.platform == 'win32':
-    def pinger(i, q):
-        """Pings subnet"""
+    def pinger(q):
         while 1:
             idx = q.get()
             ip = addresses[idx]
-            if not subprocess.call(["ping", "-n", "1", "-w", "500", "-l", "1"],
-                                   stdout=open('NUL', 'w'), stderr=subprocess.STDOUT):
+            if not subprocess.call(["ping", "-n", "1", "-w", "500", "-l", "1",ip],
+                                stdout=open('NUL', 'w'), stderr=subprocess.STDOUT):
                 logger.debug(f"{ip}: is alive")
                 scan_results[idx] = "on"
             else:
@@ -163,17 +164,13 @@ if sys.platform == 'win32':
                 scan_results[idx] = "off"
             q.task_done()
 else:
-    def pinger(i, q):
-        """Pings subnet"""
+    def pinger(q):
         while 1:
             idx = q.get()
             ip = addresses[idx]
-            logger.debug("Thread {}: Pinging {}".format(i, ip))
-            ret = subprocess.call(f"ping -c 1 {ip}",
-                                  shell=True,
+            if subprocess.call(["ping","-c", "1",ip],
                                   stdout=open('/dev/null', 'w'),
-                                  stderr=subprocess.STDOUT)
-            if ret == 0:
+                                  stderr=subprocess.STDOUT) == 2:
                 logger.debug("{}: is alive".format(ip))
                 scan_results[idx] = "on"
             else:
@@ -186,7 +183,7 @@ logger.debug("inizializzation ended in %f second(s)" % (end_init-start_init))
 
 logger.debug("creating thread")
 for i in range(num_threads):
-    worker = Thread(target=pinger, args=(i, queue))
+    worker = Thread(target=pinger, args=(queue,))
     worker.daemon = True
     worker.start()
 logger.debug("threads created")
@@ -236,7 +233,7 @@ try:
             from socket import gethostbyaddr, herror
             logging.info("Showing hostnames...")
             addrs = [x for x, r in zip(addresses, scan_results) if r == 'on']
-            _q = Queue(len(addrs))
+            _q:Queue = Queue()
 
             def scan_hostnames(_addr, q):
                 try:
@@ -301,52 +298,51 @@ try:
         end_visualizzazione = default_timer()
         if not repeat:
             break
-        if not webmode:
+        if pause:
             logging.info("Waiting %.2f secondi" % pause)
             time.sleep(pause)
 except KeyboardInterrupt:
     logging.debug("KeyboardInterrupt received, quitting...")
 end = default_timer()
 # creating times dataframe
-if st:
-    import pandas as pd
-    logger.debug("creating dataframe")
-    times = pd.DataFrame({"total": [end-start_init], "initialization": [end_init-start_init], "control": [
-                         end_control-start_control], "visualizzazione": [end_visualizzazione-start_visualization]})
-    logger.debug(f"{times=!r}")
-    logger.debug("getting current directory")
+if not st:exit()
 
-    def getfilepath(filename):
-        return os.path.abspath(os.path.join(config_section.get("times.path"), filename))
-    logger.info("exporting dataframe...")
-    logger.debug("saving dataframe to csv")
-    try:
-        csv_path = getfilepath("times.csv")
-        if not os.path.exists(csv_path):
-            times.to_csv(csv_path, index=False)
-        else:
-            df = pd.read_csv(csv_path)
-            df = pd.concat([df, times])
-            df.to_csv(csv_path, index=False)
-        logger.debug("saving dataframe to html")
-        html_path = getfilepath("times.html")
-        if not os.path.exists(html_path):
-            times.to_html(html_path, index=False)
-        else:
-            df = pd.read_html(html_path)
-            df.append(times)
-            df = pd.concat(df)
-            df.to_html(html_path, index=False)
-        logger.debug("saving dataframe to excel")
-        excel_path = getfilepath("times.xlsx")
-        if not os.path.exists(excel_path):
-            times.to_excel(excel_path, index=False)
-        else:
-            df = pd.read_excel(excel_path)
-            df = pd.concat([df, times])
-            df.to_excel(excel_path, index=False)
-    except Exception as e:
-        logger.error("Error accurred while exporting dataframe: {}".format(e))
-        logger.error(e)
-    logger.info("times succesfully exported!")
-logger.info("Finished.")
+import pandas as pd
+logger.debug("creating dataframe")
+times = pd.DataFrame({"total": [end-start_init], "initialization": [end_init-start_init], "control": [
+                     end_control-start_control], "visualizzazione": [end_visualizzazione-start_visualization]})
+logger.debug(f"{times=!r}")
+logger.debug("getting current directory")
+def getfilepath(filename):
+    return os.path.abspath(os.path.join(config_section.get("times.path"), filename))
+logger.info("exporting dataframe...")
+logger.debug("saving dataframe to csv")
+try:
+    csv_path = getfilepath("times.csv")
+    if not os.path.exists(csv_path):
+        times.to_csv(csv_path, index=False)
+    else:
+        df = pd.read_csv(csv_path)
+        df = pd.concat([df, times])
+        df.to_csv(csv_path, index=False)
+    logger.debug("saving dataframe to html")
+    html_path = getfilepath("times.html")
+    if not os.path.exists(html_path):
+        times.to_html(html_path, index=False)
+    else:
+        df = pd.read_html(html_path)
+        df.append(times)
+        df = pd.concat(df)
+        df.to_html(html_path, index=False)
+    logger.debug("saving dataframe to excel")
+    excel_path = getfilepath("times.xlsx")
+    if not os.path.exists(excel_path):
+        times.to_excel(excel_path, index=False)
+    else:
+        df = pd.read_excel(excel_path)
+        df = pd.concat([df, times])
+        df.to_excel(excel_path, index=False)
+except Exception as e:
+    logger.error("Error accurred while exporting dataframe: {}".format(e))
+    logger.error(e)
+logger.info("times succesfully exported!")
