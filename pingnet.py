@@ -67,14 +67,11 @@ if not webmode:
 
 config = configparser.ConfigParser()
 config.read(os.path.join(os.path.dirname(__file__), 'config.ini'))
-print(os.path.join(os.path.dirname(__file__), 'config.ini'), open(
-    os.path.join(os.path.dirname(__file__), 'config.ini'), 'r').read(), sep='\n')
 
 if not args.configuration == 'DEFAULT':
     config_section = config[args.configuration]
 else:
     config_section = config.defaults()
-print(config_section)
 logger.debug("setting ping configuration %s" % '\n'.join(
     map(lambda x: f"{x[0]}: {x[1]}", config_section.items())))
 webmode_timeformat = config_section.get(
