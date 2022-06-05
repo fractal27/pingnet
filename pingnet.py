@@ -1,4 +1,5 @@
 
+import pandas as pd
 from threading import Thread
 import subprocess
 from queue import Queue
@@ -60,17 +61,20 @@ num_threads = args.threads_number
 st = args.save_time_dataframe
 gethostnames = args.gethostnames
 if not webmode:
-    pause=0
+    pause = 0
 
 # ping configuration
 
 config = configparser.ConfigParser()
 config.read(os.path.join(os.path.dirname(__file__), 'config.ini'))
+print(os.path.join(os.path.dirname(__file__), 'config.ini'), open(
+    os.path.join(os.path.dirname(__file__), 'config.ini'), 'r').read(), sep='\n')
 
 if not args.configuration == 'DEFAULT':
     config_section = config[args.configuration]
 else:
     config_section = config.defaults()
+print(config_section)
 logger.debug("setting ping configuration %s" % '\n'.join(
     map(lambda x: f"{x[0]}: {x[1]}", config_section.items())))
 webmode_timeformat = config_section.get(
@@ -104,10 +108,10 @@ def gnt(string):
 
 
 def splitby(items: list[tuple[str, str]]):
-    final:dict[str,list] = {}
+    final: dict[str, list] = {}
     for key, val in items:
         if key.split(".")[1] not in final:
-            _k=int(key.split(".")[1])
+            _k = int(key.split(".")[1])
             if final.get(_k):
                 final[_k].append(val)
             else:
@@ -147,7 +151,7 @@ for network in networks:
         pc_type[num_pc] = network[3]
         num_pc += 1
 
-queue:Queue = Queue()
+queue: Queue = Queue()
 
 # wraps system ping command
 if sys.platform == 'win32':
@@ -155,8 +159,8 @@ if sys.platform == 'win32':
         while 1:
             idx = q.get()
             ip = addresses[idx]
-            if not subprocess.call(["ping", "-n", "1", "-w", "500", "-l", "1",ip],
-                                stdout=open('NUL', 'w'), stderr=subprocess.STDOUT):
+            if not subprocess.call(["ping", "-n", "1", "-w", "500", "-l", "1", ip],
+                                   stdout=open('NUL', 'w'), stderr=subprocess.STDOUT):
                 logger.debug(f"{ip}: is alive")
                 scan_results[idx] = "on"
             else:
@@ -168,9 +172,9 @@ else:
         while 1:
             idx = q.get()
             ip = addresses[idx]
-            if subprocess.call(["ping","-c", "1",ip],
-                                  stdout=open('/dev/null', 'w'),
-                                  stderr=subprocess.STDOUT) == 2:
+            if not subprocess.call(["ping", "-c", "1", ip],
+                                   stdout=open('/dev/null', 'w'),
+                                   stderr=subprocess.STDOUT):
                 logger.debug("{}: is alive".format(ip))
                 scan_results[idx] = "on"
             else:
@@ -219,7 +223,6 @@ try:
                     idx = addresses.index(a)
                     _str += ' X' if scan_results[idx] == "on" else ' .'
                 logger.info(f"topography: {_str}")
-            # controllo in base alla tipologia
             logger.info("Visualizing tipology of PCs..")
             for scan_res, typ, addr, pc_desc in zip(scan_results, pc_type, addresses, desc_pc):
                 if scan_res != "on" and typ == control_type.Always_active:
@@ -233,7 +236,7 @@ try:
             from socket import gethostbyaddr, herror
             logging.info("Showing hostnames...")
             addrs = [x for x, r in zip(addresses, scan_results) if r == 'on']
-            _q:Queue = Queue()
+            _q: Queue = Queue()
 
             def scan_hostnames(_addr, q):
                 try:
@@ -305,16 +308,20 @@ except KeyboardInterrupt:
     logging.debug("KeyboardInterrupt received, quitting...")
 end = default_timer()
 # creating times dataframe
-if not st:exit()
+if not st:
+    exit()
 
-import pandas as pd
 logger.debug("creating dataframe")
 times = pd.DataFrame({"total": [end-start_init], "initialization": [end_init-start_init], "control": [
                      end_control-start_control], "visualizzazione": [end_visualizzazione-start_visualization]})
 logger.debug(f"{times=!r}")
 logger.debug("getting current directory")
+
+
 def getfilepath(filename):
     return os.path.abspath(os.path.join(config_section.get("times.path"), filename))
+
+
 logger.info("exporting dataframe...")
 logger.debug("saving dataframe to csv")
 try:
