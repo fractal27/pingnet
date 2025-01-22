@@ -81,9 +81,14 @@ if webmode_timeformat == '':
 
 
 class control_type():
-    _None = 0
-    Always_active = 1
+    Null = 0
+    always_active = 1
     to_switch_off = 2
+
+def getcontroltype(string: str)->int:
+    if string in dir(control_type) and not string.startswith("__"):
+        return getattr(control_type,string)
+    return control_type.Null;
 
 
 def _getnum(items):
@@ -100,6 +105,7 @@ def _getnum(items):
         return 4
 
 
+
 def gnt(string):
     return int(string.split(".")[1])
 
@@ -114,7 +120,7 @@ def splitby(items: list[tuple[str, str]]):
             else:
                 final[_k] = [val]
     final = list(map(lambda lst: [*map(int, (lst[0], lst[1])), lst[2],
-                 control_type().__getattribute__(lst[3])], list(final.values())))
+                 getcontroltype(lst[3])], list(final.values())))
     return final
 
 
@@ -220,7 +226,7 @@ try:
                     idx = addresses.index(a)
                     _str += ' X' if scan_results[idx] == "on" else ' .'
                 logger.info(f"topography: {_str}")
-            logger.info("Visualizing tipology of PCs..")
+            logger.info("Visualizing topology of PCs..")
             for scan_res, typ, addr, pc_desc in zip(scan_results, pc_type, addresses, desc_pc):
                 if scan_res != "on" and typ == control_type.Always_active:
                     logging.info(
